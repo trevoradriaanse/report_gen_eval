@@ -1,0 +1,8 @@
+together>=0.2.8
+python-dotenv>=1.0.0
+tqdm>=4.66.1
+argparse>=1.4.0
+pathlib>=1.0.1
+typing>=3.7.4.3
+pytest>=7.4.0
+pytest-cov>=4.1.0
