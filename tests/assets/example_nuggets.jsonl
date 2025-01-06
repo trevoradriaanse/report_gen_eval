@@ -1,1 +1,1 @@
-{"request_id": 300, "nuggets": [{"question": "How much did suicides rise by in 2020?", "answer": "3.7%", "documents_with_nugget": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]}]}
+{"query_id": "300", "test_collection": "rus_2024", "query_text": "Example query text for testing", "hash": 1111, "items": [{"query_id": "300", "info": {"importance": "vital", "used": false}, "question_id": "300_test", "question_text": "How much did suicides rise by in 2020?", "gold_answers": ["3.7%"]}]}

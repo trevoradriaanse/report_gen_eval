@@ -3,6 +3,11 @@
 
 This repository implements the evaluation framework from ["On the Evaluation of Machine-Generated Reports"](https://arxiv.org/abs/2405.00982) (Mayfield et al., SIGIR 2024). It provides tools for systematically evaluating AI-generated reports based on citation usage, factual accuracy, and information coverage.
 
+## Things TODO
+- I don't have access to the original documents from the citations, which are pretty crucial!
+- We need to validate that the paths I wrote are correct for scoring :) and test some of the examples.
+- We should batch the question-answer calls to reduce the time it takes for evaluation (several min per report)
+
 ## Installation
 
 ### Option 1: Using UV (Recommended)
@@ -68,7 +73,7 @@ ANTHROPIC_API_KEY=your_anthropic_key_here  # Optional
 
 Basic usage:
 ```bash
-report-eval tests/assets/example_input.jsonl tests/assets/example_nuggets.jsonl results/ --batch-size 1
+report-eval data/dev_reports_one.jsonl data/dev_nuggets_one.jsonl results/ --batch-size 1 --verbose
 ```
 
 With specific model provider:
@@ -93,21 +98,29 @@ The input JSONL file should contain report entries with this structure:
 }
 ```
 
-Note: The citations field is an array of citation IDs. The evaluator will assume the citations are relevant since the actual citation content is not provided.
-
 The nuggets file should contain evaluation criteria in this format:
 ```json
 {
-  "request_id": 300,
-  "nuggets": [
+  "query_id": "300",
+  "test_collection": "rus_2024",
+  "query_text": "Example query text for testing",
+  "hash": 1111,
+  "items": [
     {
-      "question": "How much did suicides rise by in 2020?",
-      "answer": "3.7%",
-      "documents_with_nugget": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
+      "query_id": "300",
+      "info": {
+        "importance": "vital",
+        "used": false
+      },
+      "question_id": "300_test",
+      "question_text": "How much did suicides rise by in 2020?",
+      "gold_answers": ["3.7%"]
     }
   ]
 }
 ```
+
+Note: Each nugget can have multiple gold answers, and any sentence that correctly answers the question (matches any of the gold answers) will be rewarded.
 
 ### Python API
 

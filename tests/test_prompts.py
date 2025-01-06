@@ -9,6 +9,9 @@ from report_gen_eval.prompts import (
     FIRST_INSTANCE_SYSTEM, FIRST_INSTANCE_USER,
     NUGGET_AGREEMENT_SYSTEM, NUGGET_AGREEMENT_USER
 )
+import json
+import tempfile
+from typing import List, Dict
 
 class TestError(Exception):
     """Custom error for test failures."""
@@ -139,21 +142,80 @@ def test_first_instance(first_instance_examples, default_provider):
                 raise
             raise TestError(str(e), context=context)
 
-def test_nugget_agreement(nugget_examples, default_provider):
+@pytest.fixture
+def nugget_examples() -> List[Dict]:
+    """Example sentences with nuggets to test agreement."""
+    return [
+        {
+            "text": "The model achieved 95% accuracy.",
+            "question_text": "What was the model's accuracy?",
+            "gold_answers": ["95%"],
+            "expected": "YES"
+        },
+        {
+            "text": "Deep learning has transformed AI.",
+            "question_text": "What has changed AI?",
+            "gold_answers": ["neural networks", "deep learning"],
+            "expected": "YES"
+        },
+        {
+            "text": "The study found no correlation.",
+            "question_text": "What correlation was found?",
+            "gold_answers": ["A strong correlation"],
+            "expected": "NO"
+        }
+    ]
+
+def test_nugget_agreement(nugget_examples):
     """Test nugget agreement prompt."""
-    for i, example in enumerate(nugget_examples):
-        context = f"nugget agreement example {i + 1}: {example['text']}"
-        try:
+    for example in nugget_examples:
+        for answer in example['gold_answers']:
+            # Format nugget as question-answer pair
+            nugget_text = f"Question: {example['question_text']}\nAnswer: {answer}"
             response = get_model_response(
                 NUGGET_AGREEMENT_SYSTEM,
                 NUGGET_AGREEMENT_USER.format(
-                    sentence=example["text"],
-                    nugget=example["nugget"]
-                ),
-                provider=default_provider
+                    sentence=example['text'],
+                    nugget=nugget_text
+                )
             )
-            validate_response(response, example["expected"], context)
-        except Exception as e:
-            if isinstance(e, TestError):
-                raise
-            raise TestError(str(e), context=context) 
+            assert response == example['expected']
+
+def test_evaluate_report():
+    """Test report evaluation with nuggets."""
+    report = {
+        "request_id": "300",
+        "run_id": "test",
+        "collection_ids": ["test"],
+        "sentences": [
+            {
+                "text": "The suicide rate increased by 3.7% in 2020.",
+                "citations": ["doc1"]
+            }
+        ]
+    }
+    
+    # Create a temporary nuggets file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl') as f:
+        json.dump({
+            "query_id": "300",
+            "test_collection": "rus_2024",
+            "query_text": "Test query",
+            "hash": 1111,
+            "items": [
+                {
+                    "query_id": "300",
+                    "info": {
+                        "importance": "vital",
+                        "used": False
+                    },
+                    "question_id": "300_test",
+                    "question_text": "How much did suicides rise by in 2020?",
+                    "gold_answers": ["3.7%"]
+                }
+            ]
+        }, f)
+        f.flush()
+        
+        results = evaluate_report(report, nuggets_file=f.name)
+        assert results["metrics"]["unique_nuggets_matched"] == 1 
