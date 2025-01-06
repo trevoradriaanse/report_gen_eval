@@ -5,6 +5,35 @@ This repository implements the evaluation framework from ["On the Evaluation of 
 
 ## Installation
 
+### Option 1: Using UV (Recommended)
+
+[UV](https://github.com/astral-sh/uv) is a fast Python package installer and resolver. To set up the environment using UV:
+
+1. Install UV (if not already installed):
+```bash
+curl -LsSf https://github.com/astral-sh/uv/releases/latest/download/uv-installer.sh | sh
+```
+
+2. Clone and set up the environment:
+```bash
+git clone https://github.com/orionweller/report_gen_eval.git
+cd report_gen_eval
+chmod +x uv_install.sh
+./uv_install.sh
+```
+
+3. Activate the environment:
+```bash
+source env/bin/activate
+```
+
+4. Install in development mode:
+```bash
+uv pip install -e .
+```
+
+### Option 2: Using pip
+
 You can install the package directly from GitHub:
 
 ```bash
@@ -39,12 +68,12 @@ ANTHROPIC_API_KEY=your_anthropic_key_here  # Optional
 
 Basic usage:
 ```bash
-report-eval tests/assets/example_input.jsonl tests/assets/example_nuggets.jsonl results/ --batch-size 10
+report-eval tests/assets/example_input.jsonl tests/assets/example_nuggets.jsonl results/ --batch-size 1
 ```
 
 With specific model provider:
 ```bash
-report-eval tests/assets/example_input_one_only.jsonl tests/assets/example_nuggets.jsonl results/ -p openai -m gpt-4-1106-preview
+report-eval tests/assets/example_input_one_only.jsonl tests/assets/example_nuggets.jsonl results/ -p openai -m gpt-4o-2024-11-20
 ```
 
 ### Input Format
@@ -58,13 +87,13 @@ The input JSONL file should contain report entries with this structure:
   "sentences": [
     {
       "text": "Japan experienced a significant increase in suicide rates during the COVID-19 pandemic.",
-      "citations": {
-        "56b44b0f-fd8d-4d81-bae9-7f8d80e6b745": "Content of the cited document..."
-      }
+      "citations": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
     }
   ]
 }
 ```
+
+Note: The citations field is an array of citation IDs. The evaluator will assume the citations are relevant since the actual citation content is not provided.
 
 The nuggets file should contain evaluation criteria in this format:
 ```json
@@ -87,21 +116,26 @@ from report_gen_eval import evaluate_report, ModelProvider
 
 # Example report evaluation
 sentences = [
-    "Japan experienced a significant increase in suicide rates during the COVID-19 pandemic.",
-    "In 2020, suicides rose by 3.7% to 20,919, the first increase in 11 years."
+    {
+        "text": "Japan experienced a significant increase in suicide rates during the COVID-19 pandemic.",
+        "citations": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
+    },
+    {
+        "text": "In 2020, suicides rose by 3.7% to 20,919, the first increase in 11 years.",
+        "citations": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
+    }
 ]
 
-citation_contents = {
-    "0": {
-        "56b44b0f-fd8d-4d81-bae9-7f8d80e6b745": "Japan saw its first rise in suicide rates in 11 years..."
-    }
+report = {
+    "request_id": "300",
+    "run_id": "example-run",
+    "collection_ids": ["collection1"],
+    "sentences": sentences
 }
 
 # Evaluate with specific model provider
 results = evaluate_report(
-    sentences=sentences,
-    citation_contents=citation_contents,
-    request_id="300",
+    report,
     nuggets_file="tests/assets/example_nuggets.jsonl",
     provider=ModelProvider.TOGETHER,
     model_name="meta-llama/Llama-3.3-70B-Instruct-Turbo"

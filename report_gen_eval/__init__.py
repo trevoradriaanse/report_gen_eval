@@ -1,7 +1,5 @@
-"""
-Report Generation Evaluation package.
-"""
+"""Report Generation Evaluator package."""
 
-from . import prompts  # This ensures the prompts module is properly imported as a submodule
+from .evaluator import evaluate_report, evaluate_sentence, ModelProvider
 
-__version__ = "0.1.0"
+__all__ = ['evaluate_report', 'evaluate_sentence', 'ModelProvider']

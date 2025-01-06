@@ -49,9 +49,9 @@ def process_report(report: Dict[str, Any], nuggets_file: str = None,
             raise ValueError(f"Invalid sentence structure at index {i}: missing 'text' field")
         
         # Validate citations if present
-        citations = sentence.get('citations', {})
-        if citations and not isinstance(citations, dict):
-            raise ValueError(f"Invalid citations format at sentence index {i}: must be a dictionary")
+        citations = sentence.get('citations', [])
+        if citations and not isinstance(citations, (dict, list)):
+            raise ValueError(f"Invalid citations format at sentence index {i}: must be a dictionary or list")
     
     # Load nuggets if file is provided
     nuggets = None
