@@ -3,11 +3,6 @@
 
 This repository implements the evaluation framework from ["On the Evaluation of Machine-Generated Reports"](https://arxiv.org/abs/2405.00982) (Mayfield et al., SIGIR 2024). It provides tools for systematically evaluating AI-generated reports based on citation usage, factual accuracy, and information coverage.
 
-## Things TODO
-- I don't have access to the original documents from the citations, which are pretty crucial!
-- We need to validate that the paths I wrote are correct for scoring :) and test some of the examples.
-- We should batch the question-answer calls to reduce the time it takes for evaluation (several min per report)
-
 ## Installation
 
 ### Option 1: Using UV (Recommended)
@@ -66,6 +61,44 @@ TOGETHER_API_KEY=your_api_key_here
 OPENAI_API_KEY=your_openai_key_here  # Optional
 ANTHROPIC_API_KEY=your_anthropic_key_here  # Optional
 ```
+
+## Document Lookup Setup
+
+The evaluator requires access to the source documents to verify citations. This section explains how to set up the document lookup system.
+
+### Download and Setup
+
+Clone the document lookup repository:
+```bash
+git clone https://huggingface.co/datasets/orionweller/neuclir-docs-lookup
+```
+
+### Available Collections
+
+The document lookup system supports the following collections:
+- `neuclir/1/zh` (Chinese documents)
+- `neuclir/1/fa` (Farsi documents)
+- `neuclir/1/ru` (Russian documents)
+
+### Collection ID Mapping
+
+When referencing documents in your reports, use these collection IDs. The system automatically handles these common variants:
+- Chinese: `neuclir/1/zh` or `neuclir/1/zho`
+- Farsi: `neuclir/1/fa` or `neuclir/1/fas`
+- Russian: `neuclir/1/ru` or `neuclir/1/rus`
+
+### Memory Usage
+
+The document lookup system uses an in-memory cache to optimize performance:
+- Documents are loaded on first access
+- Cache is shared across all evaluations
+- Cache persists until the program exits
+- Each collection typically requires 1-2GB of memory
+
+If you're processing many reports and encounter memory issues:
+- Process reports in smaller batches
+- Clear the cache between large batches
+- Monitor memory usage with the `--verbose` flag
 
 ## Usage
 
@@ -162,9 +195,14 @@ Run the test suite:
 python -m pytest tests/
 ```
 
-Or run specific tests:
+Or run one of the specific tests focusing on prompting:
 ```bash
 python -m pytest tests/test_prompts.py -k test_check_relevance -v
+python -m pytest tests/test_prompts.py -k test_requires_citation -v
+python -m pytest tests/test_prompts.py -k test_nugget_agreement -v
+python -m pytest tests/test_prompts.py -k test_check_negative -v
+python -m pytest tests/test_prompts.py -k test_first_instance -v
+...
 ```
 
 ## Evaluation Framework

@@ -1,4 +1,14 @@
-"""Command line interface for report evaluation."""
+"""Command line interface for report evaluation.
+
+This module provides the command-line interface for running report evaluations.
+It handles:
+1. Command line argument parsing
+2. Input validation and error handling
+3. Parallel processing of reports
+4. Progress tracking and logging
+5. Results saving
+"""
+
 import argparse
 import json
 import os
@@ -11,32 +21,32 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 
 from .evaluator import evaluate_report, ModelProvider
+from .utils import load_jsonl, save_jsonl
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def load_jsonl(file_path: str) -> List[Dict]:
-    """Load JSONL file."""
-    data = []
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            if line.strip():
-                data.append(json.loads(line))
-    return data
-
-def save_jsonl(data: List[Dict], file_path: str):
-    """Save data as JSONL."""
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'w', encoding='utf-8') as f:
-        for item in data:
-            f.write(json.dumps(item, ensure_ascii=False) + '\n')
-
 def process_report(report: Dict[str, Any], nuggets_file: str = None,
                   provider: str = ModelProvider.TOGETHER,
                   model_name: str = None,
                   verbose: bool = False) -> Dict[str, Any]:
-    """Process a single report."""
+    """Process a single report with error handling.
+    
+    Args:
+        report: The report to process
+        nuggets_file: Path to the nuggets file
+        provider: The model provider to use
+        model_name: Optional specific model name
+        verbose: Whether to enable verbose logging
+        
+    Returns:
+        The evaluation results or None if processing failed
+        
+    Note:
+        This function wraps evaluate_report with additional validation
+        and error handling suitable for batch processing.
+    """
     try:
         report_id = report.get('request_id', 'unknown')
         if verbose:
@@ -72,7 +82,14 @@ def process_report(report: Dict[str, Any], nuggets_file: str = None,
         return None
 
 def main():
-    """Main entry point for the CLI."""
+    """Main entry point for the CLI.
+    
+    This function:
+    1. Parses command line arguments
+    2. Validates input files and settings
+    3. Processes reports in parallel batches
+    4. Saves results and handles errors
+    """
     parser = argparse.ArgumentParser(description='Evaluate report sentences from JSONL file')
     parser.add_argument('input_file', type=str, help='Path to input JSONL file')
     parser.add_argument('nuggets_file', type=str, help='Path to nuggets file containing evaluation criteria')

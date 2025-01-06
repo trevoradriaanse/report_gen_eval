@@ -1,7 +1,7 @@
 """Tests for individual prompts."""
 import pytest
 import traceback
-from report_gen_eval.evaluator import get_model_response, ModelProvider, get_model
+from report_gen_eval.evaluator import get_model_response, ModelProvider
 from report_gen_eval.prompts import (
     CHECK_RELEVANCE_SYSTEM, CHECK_RELEVANCE_USER,
     CHECK_NEGATIVE_SYSTEM, CHECK_NEGATIVE_USER,
@@ -55,20 +55,20 @@ def test_model_providers():
     """Test model provider selection."""
     try:
         # Test OpenAI
-        model = get_model(ModelProvider.OPENAI)
-        assert "openai" in str(model).lower(), "OpenAI model not properly initialized"
+        response = get_model_response("test", "test", provider=ModelProvider.OPENAI)
+        assert response is not None, "OpenAI model response failed"
         
         # Test Anthropic
-        model = get_model(ModelProvider.ANTHROPIC)
-        assert "anthropic" in str(model).lower(), "Anthropic model not properly initialized"
+        response = get_model_response("test", "test", provider=ModelProvider.ANTHROPIC)
+        assert response is not None, "Anthropic model response failed"
         
         # Test Together
-        model = get_model(ModelProvider.TOGETHER)
-        assert "together" in str(model).lower(), "Together model not properly initialized"
+        response = get_model_response("test", "test", provider=ModelProvider.TOGETHER)
+        assert response is not None, "Together model response failed"
         
         # Test invalid provider
         with pytest.raises(ValueError, match="Unsupported model provider"):
-            get_model("invalid_provider")
+            get_model_response("test", "test", provider="invalid_provider")
     except Exception as e:
         raise TestError(str(e), context="model provider initialization")
 
