@@ -3,11 +3,29 @@
 
 This repository implements the evaluation framework from ["On the Evaluation of Machine-Generated Reports"](https://arxiv.org/abs/2405.00982) (Mayfield et al., SIGIR 2024). It provides tools for systematically evaluating AI-generated reports based on citation usage, factual accuracy, and information coverage.
 
+## Table of Contents
+- [Installation](#installation)
+  - [Option 1: Using UV (Recommended)](#option-1-using-uv-recommended)
+  - [Option 2: Using pip](#option-2-using-pip)
+- [Configuration](#configuration)
+- [Document Lookup Setup](#document-lookup-setup)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Evaluation Framework](#evaluation-framework)
+- [Citation](#citation)
+
 ## Installation
 
 ### Option 1: Using UV (Recommended)
 
-[UV](https://github.com/astral-sh/uv) is a fast Python package installer and resolver. To set up the environment using UV:
+Quick install:
+```bash
+git clone https://github.com/orionweller/report_gen_eval.git && cd report_gen_eval
+chmod +x uv_install.sh && ./uv_install.sh
+```
+
+<details>
+<summary>Click for detailed installation steps</summary>
 
 1. Install UV (if not already installed):
 ```bash
@@ -31,29 +49,34 @@ source env/bin/activate
 ```bash
 uv pip install -e .
 ```
+</details>
 
 ### Option 2: Using pip
 
-You can install the package directly from GitHub:
-
+Quick install:
 ```bash
 pip install git+https://github.com/orionweller/report_gen_eval.git
 ```
 
-Or install in development mode:
+<details>
+<summary>Click for development installation</summary>
 
 ```bash
 git clone https://github.com/orionweller/report_gen_eval.git
 cd report_gen_eval
 pip install -e .
 ```
+</details>
 
 ## Configuration
 
-The evaluator uses LangChain to interact with various LLM providers. Currently supported providers:
+The evaluator uses LangChain to interact with various LLM providers:
 - Together AI (default)
 - OpenAI
 - Anthropic
+
+<details>
+<summary>Click to view API configuration details</summary>
 
 Create a `.env` file with your API key(s):
 ```bash
@@ -61,57 +84,57 @@ TOGETHER_API_KEY=your_api_key_here
 OPENAI_API_KEY=your_openai_key_here  # Optional
 ANTHROPIC_API_KEY=your_anthropic_key_here  # Optional
 ```
+</details>
 
 ## Document Lookup Setup
 
-The evaluator requires access to the source documents to verify citations. This section explains how to set up the document lookup system.
-
-### Download and Setup
-
-Clone the document lookup repository:
+The evaluator requires access to source documents to verify citations. Clone the document lookup repository:
 ```bash
 git clone https://huggingface.co/datasets/orionweller/neuclir-docs-lookup
 ```
 
-### Available Collections
+<details>
+<summary>Click for detailed document lookup information</summary>
 
-The document lookup system supports the following collections:
+### Available Collections
+The document lookup system supports:
 - `neuclir/1/zh` (Chinese documents)
 - `neuclir/1/fa` (Farsi documents)
 - `neuclir/1/ru` (Russian documents)
 
 ### Collection ID Mapping
-
-When referencing documents in your reports, use these collection IDs. The system automatically handles these common variants:
+Common variants are automatically handled:
 - Chinese: `neuclir/1/zh` or `neuclir/1/zho`
 - Farsi: `neuclir/1/fa` or `neuclir/1/fas`
 - Russian: `neuclir/1/ru` or `neuclir/1/rus`
 
 ### Memory Usage
-
-The document lookup system uses an in-memory cache to optimize performance:
 - Documents are loaded on first access
-- Cache is shared across all evaluations
-- Cache persists until the program exits
+- Cache is shared across evaluations
+- Cache persists until program exits
 - Each collection typically requires 1-2GB of memory
 
-If you're processing many reports and encounter memory issues:
+Tips for memory management:
 - Process reports in smaller batches
-- Clear the cache between large batches
-- Monitor memory usage with the `--verbose` flag
+- Clear cache between large batches
+- Monitor memory usage with `--verbose` flag
+</details>
 
 ## Usage
-
-### Command Line Interface
 
 Basic usage:
 ```bash
 report-eval data/dev_reports_one.jsonl data/dev_nuggets_one.jsonl results/ --batch-size 1 --verbose
 ```
 
+<details>
+<summary>Click for detailed usage information</summary>
+
+### Command Line Interface
+
 With specific model provider:
 ```bash
-report-eval tests/assets/example_input_one_only.jsonl tests/assets/example_nuggets.jsonl results/ -p openai -m gpt-4o-2024-11-20
+report-eval tests/assets/example_input_one_only.jsonl tests/assets/example_nuggets.jsonl results/ -p openai -m gpt-4-0125-preview
 ```
 
 ### Input Format
@@ -153,8 +176,6 @@ The nuggets file should contain evaluation criteria in this format:
 }
 ```
 
-Note: Each nugget can have multiple gold answers, and any sentence that correctly answers the question (matches any of the gold answers) will be rewarded.
-
 ### Python API
 
 ```python
@@ -164,10 +185,6 @@ from report_gen_eval import evaluate_report, ModelProvider
 sentences = [
     {
         "text": "Japan experienced a significant increase in suicide rates during the COVID-19 pandemic.",
-        "citations": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
-    },
-    {
-        "text": "In 2020, suicides rose by 3.7% to 20,919, the first increase in 11 years.",
         "citations": ["56b44b0f-fd8d-4d81-bae9-7f8d80e6b745"]
     }
 ]
@@ -179,7 +196,6 @@ report = {
     "sentences": sentences
 }
 
-# Evaluate with specific model provider
 results = evaluate_report(
     report,
     nuggets_file="tests/assets/example_nuggets.jsonl",
@@ -187,6 +203,7 @@ results = evaluate_report(
     model_name="meta-llama/Llama-3.3-70B-Instruct-Turbo"
 )
 ```
+</details>
 
 ## Testing
 
@@ -195,19 +212,25 @@ Run the test suite:
 python -m pytest tests/
 ```
 
-Or run one of the specific tests focusing on prompting:
+<details>
+<summary>Click for specific test examples</summary>
+
+Run specific prompting tests:
 ```bash
 python -m pytest tests/test_prompts.py -k test_check_relevance -v
 python -m pytest tests/test_prompts.py -k test_requires_citation -v
 python -m pytest tests/test_prompts.py -k test_nugget_agreement -v
 python -m pytest tests/test_prompts.py -k test_check_negative -v
 python -m pytest tests/test_prompts.py -k test_first_instance -v
-...
 ```
+</details>
 
 ## Evaluation Framework
 
-For each sentence in a report, the framework applies the following evaluation steps:
+The framework evaluates AI-generated reports based on citation usage, factual accuracy, and information coverage.
+
+<details>
+<summary>Click for detailed evaluation process</summary>
 
 ### For Sentences Without Citations:
 
@@ -244,15 +267,21 @@ Important Notes:
 - Each unique nugget counts only once for recall
 - Ignored sentences (score=0) don't affect precision
 - Any penalized sentence (-1) counts against precision
+</details>
 
 ## Citation
 
-If you use this evaluation framework in your research, please cite both:
+If you use this evaluation framework in your research, please cite:
+
+<details>
+<summary>Click to view citation information</summary>
+
 This implementation:
 ```bibtex
 TODO
 ```
-and the original framework:
+
+The original framework:
 ```bibtex
 @inproceedings{Mayfield2024OnTE,
   title={On the Evaluation of Machine-Generated Reports},
@@ -262,3 +291,4 @@ and the original framework:
   url={https://api.semanticscholar.org/CorpusID:269502216}
 }
 ```
+</details>
