@@ -232,6 +232,8 @@ The framework evaluates AI-generated reports based on citation usage, factual ac
 <details>
 <summary>Click for detailed evaluation process</summary>
 
+![Scoring Methodology](assets/scoring-numbered.png)
+
 ### For Sentences Without Citations:
 
 1. If the sentence contains a negative statement ("X is not true"):
@@ -273,9 +275,6 @@ Important Notes:
 
 If you use this evaluation framework in your research, please cite:
 
-<details>
-<summary>Click to view citation information</summary>
-
 This implementation:
 ```bibtex
 TODO
@@ -291,4 +290,3 @@ The original framework:
   url={https://api.semanticscholar.org/CorpusID:269502216}
 }
 ```
-</details>
