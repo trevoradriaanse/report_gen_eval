@@ -92,7 +92,7 @@ def get_model_response(
     max_retries: int = 3,
     base_delay: float = 2.0,
 ) -> str:
-    """Get a single YES/NO response from the specified model with retry logic.
+    """Get a response from the specified model with retry logic.
 
     Args:
         system_prompt: The system prompt to use
@@ -103,7 +103,7 @@ def get_model_response(
         base_delay: Base delay between retries (uses exponential backoff)
 
     Returns:
-        The model's response as "YES" or "NO"
+        The model's response
 
     Raises:
         RuntimeError: If max retries exceeded or invalid response received
@@ -118,18 +118,9 @@ def get_model_response(
             response = model.invoke(messages)
             response_text = response.content.strip().upper()
 
-            if len(response_text) > 3:
-                if response_text.startswith("NO"):
-                    response_text = "NO"
-                elif response_text.startswith("YES"):
-                    response_text = "YES"
-
-            if response_text not in ["YES", "NO"]:
-                raise ValueError(
-                    f"Invalid model response: {response_text}. Expected YES or NO."
-                )
-
             return response_text
+        except ValueError:
+            raise ValueError(f"Unsupported model provider: {provider}")
         except Exception as e:
             if "429" in str(e) and attempt < max_retries - 1:
                 delay = base_delay * (2**attempt) + uniform(0, 0.1)
@@ -144,6 +135,32 @@ def get_model_response(
             raise RuntimeError(
                 f"Model response error after {max_retries} attempts: {str(e)}"
             )
+
+
+def modify_model_response(response_text: str) -> str:
+    """Modify model response to be YES/NO.
+
+    Args:
+        response_text: The model output to verify
+
+    Returns:
+        The model's response as "YES" or "NO"
+
+    Raises:
+        ValueError: If model response is malformed
+    """
+
+    if len(response_text) > 3:
+        if response_text.startswith("NO"):
+            response_text = "NO"
+        elif response_text.startswith("YES"):
+            response_text = "YES"
+    if response_text not in ["YES", "NO"]:
+        raise ValueError(
+            f"Invalid model response: {response_text}. Expected YES or NO."
+        )
+
+    return response_text
 
 
 def get_text_from_id_fast(
@@ -226,17 +243,7 @@ def batch_model_responses(
                     ]
                     response = model.invoke(messages)
                     response_text = response.content.strip().upper()
-
-                    if len(response_text) > 3:
-                        if response_text.startswith("NO"):
-                            response_text = "NO"
-                        elif response_text.startswith("YES"):
-                            response_text = "YES"
-
-                    if response_text not in ["YES", "NO"]:
-                        raise ValueError(
-                            f"Invalid model response: {response_text}. Expected YES or NO."
-                        )
+                    response_text = modify_model_response(response_text)
 
                     batch_responses.append(response_text)
 
