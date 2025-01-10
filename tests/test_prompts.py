@@ -75,13 +75,13 @@ def test_model_providers():
         assert response is not None, "Anthropic model response failed"
 
         # Test Together
-        # response = get_model_response("test", "test", provider=ModelProvider.TOGETHER)
+        response = get_model_response("test", "test", provider=ModelProvider.TOGETHER)
         assert response is not None, "Together model response failed"
 
         # Test Hugging Face
-        # response = get_model_response(
-        #     "test", "test", provider=ModelProvider.HUGGINGFACE
-        # )
+        response = get_model_response(
+            "test", "test", provider=ModelProvider.HUGGINGFACE
+        )
         assert response is not None, "Hugging Face model response failed"
 
         # Test invalid provider
