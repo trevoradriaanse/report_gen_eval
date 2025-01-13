@@ -92,7 +92,7 @@ def test_model_providers():
 
 
 def test_check_relevance(relevance_examples, default_provider):
-    """Test citation relevance prompt."""
+    """Test citation relevance prompt.  Matches 'cited document is relevant' diamond"""
     for i, example in enumerate(relevance_examples):
         context = f"relevance example {i + 1}: {example['text']}"
         try:

@@ -171,13 +171,13 @@ def check_nugget_matches(
 
 
 def evaluate_sentence(
-    sentence: str,
-    citation_content: Optional[List[str]] = None,
-    previous_sentences: Optional[List[str]] = None,
-    nuggets: Optional[List[Dict[str, Any]]] = None,
-    provider: str = ModelProvider.TOGETHER,
-    model_name: str = None,
-    verbose: bool = False,
+        sentence: str,
+        citation_content: Optional[List[str]] = None,
+        previous_sentences: Optional[List[str]] = None,
+        nuggets: Optional[List[Dict[str, Any]]] = None,
+        provider: str = ModelProvider.TOGETHER,
+        model_name: str = None,
+        verbose: bool = False,
 ) -> Dict[str, Any]:
     """Evaluate a single sentence according to the evaluation framework.
 
@@ -339,7 +339,7 @@ def evaluate_sentence(
                     )
                     is_first = modify_model_response(is_first)
                     results["evaluation_details"]["is_first_instance"] = (
-                        is_first == "YES"
+                            is_first == "YES"
                     )
                     results["evaluation_details"]["model_responses"].append(
                         {
@@ -362,6 +362,223 @@ def evaluate_sentence(
     if verbose:
         logger.debug(f"Sentence evaluation complete. Score: {results['score']}")
     return results
+
+
+def evaluate_sentence_w_diagram(
+        sentence: str,
+        citation_content: Optional[List[str]] = None,
+        previous_sentences: Optional[List[str]] = None,
+        nuggets: Optional[List[Dict[str, Any]]] = None,
+        provider: str = ModelProvider.TOGETHER,
+        model_name: str = None,
+        verbose: bool = False,
+) -> Dict[str, Any]:
+    """Evaluate a single sentence according to the evaluation framework.
+
+    The evaluation follows a decision tree based on whether the sentence has citations:
+    1. For sentences with citations:
+       - First checks if citations support the claim
+       - Then checks for nugget matches if citations are relevant
+    2. For sentences without citations:
+       - Handles negative statements differently
+       - Checks if citations are required
+       - Considers if it's the first instance of a claim
+
+    Args:
+        sentence: The sentence to evaluate
+        citation_content: List of citation texts
+        previous_sentences: List of sentences that came before this one (for first instance checking)
+        nuggets: List of nuggets to check against
+        provider: The model provider to use
+        model_name: Optional specific model name
+        verbose: Whether to log debug information
+
+    Returns:
+        Dictionary containing:
+        - sentence: The original sentence
+        - evaluation_path: List of steps taken in evaluation
+        - matched_nuggets: List of nuggets that were matched
+        - score: The final score
+        - citation_details: Information about citations and their relevance
+        - evaluation_details: Details about the evaluation process
+    """
+    if verbose:
+        logger.debug(f"Evaluating sentence: {sentence[:100]}...")
+
+    results = empty_response(sentence) #
+
+    # Step 1: Check for citations
+    has_citations = citation_content is not None and len(citation_content) > 0
+    if verbose:
+        logger.debug(f"Has citations: {has_citations}")
+        if has_citations:
+            logger.debug(f"Citations: {citation_content}")
+
+    results["citation_details"]["has_citations"] = has_citations
+    results["evaluation_path"].append(1)
+
+    if has_citations:
+        results = process_w_citations(citation_content, model_name, nuggets, provider, results, sentence)
+    else:
+        results = process_wo_citations(model_name, nuggets, previous_sentences, provider, results, sentence)
+
+    if verbose:
+        logger.debug(f"Sentence evaluation complete. Score: {results['score']}")
+    return results
+
+
+def process_wo_citations(model_name : str,
+                         nuggets: Optional[List[Dict[str, Any]]],
+                         previous_sentences : Optional[List[str]],
+                         provider : str,
+                         results : Dict[str, Any],
+                         sentence : str) -> Dict[str, Any]:
+    # Process sentences without citations
+    is_negative = get_model_response(
+        CHECK_NEGATIVE_SYSTEM,
+        CHECK_NEGATIVE_USER.format(sentence=sentence),
+        provider=provider,
+        model_name=model_name,
+    )
+    is_negative = modify_model_response(is_negative)
+    results["evaluation_details"]["is_negative"] = is_negative == "YES"
+    results["evaluation_details"]["model_responses"].append(
+        {"type": "check_negative", "response": is_negative}
+    )
+    if is_negative == "YES":
+        # For negative statements, batch check all nugget matches
+        if nuggets:
+            matched_nuggets = check_nugget_matches(
+                sentence, nuggets, provider, model_name
+            )
+            results["matched_nuggets"] = matched_nuggets
+            if matched_nuggets:
+                results["score"] = (
+                    1  # Reward if any nugget confirms negative statement
+                )
+            else:
+                results[
+                    "score"
+                ] = -1  # Penalize if no nugget supports negative claim
+    else:
+        # For non-negative statements without citations
+        requires_cite = get_model_response(
+            REQUIRES_CITATION_SYSTEM,
+            REQUIRES_CITATION_USER.format(sentence=sentence),
+            provider=provider,
+            model_name=model_name,
+        )
+        requires_cite = modify_model_response(requires_cite)
+        results["evaluation_details"]["requires_citation"] = requires_cite == "YES"
+        results["evaluation_details"]["model_responses"].append(
+            {"type": "requires_citation", "response": requires_cite}
+        )
+
+        if requires_cite == "YES":
+            # Check if it's the first instance (this must be sequential)
+            if previous_sentences:
+                is_first = get_model_response(
+                    FIRST_INSTANCE_SYSTEM,
+                    FIRST_INSTANCE_USER.format(
+                        sentence=sentence,
+                        previous_sentences="\n".join(previous_sentences),
+                    ),
+                    provider=provider,
+                    model_name=model_name,
+                )
+                is_first = modify_model_response(is_first)
+                results["evaluation_details"]["is_first_instance"] = (
+                        is_first == "YES"
+                )
+                results["evaluation_details"]["model_responses"].append(
+                    {
+                        "type": "first_instance",
+                        "response": is_first,
+                        "context": {
+                            "num_previous_sentences": len(previous_sentences)
+                        },
+                    }
+                )
+                results["score"] = (
+                    -1 if is_first == "YES" else 0
+                )  # Penalize first occurrence, ignore repeats
+            else:
+                results["evaluation_details"]["is_first_instance"] = True
+                results["score"] = -1  # Penalize first occurrence
+        else:
+            results["score"] = 0  # Ignore statements not requiring citations
+
+    return results
+
+
+def process_w_citations(citation_content : Optional[List[str]],
+                        model_name : str,
+                        nuggets: Optional[List[Dict[str, Any]]],
+                        provider : str,
+                        results : Dict[str, Any],
+                        sentence : str) -> Dict[str, Any]:
+    # Process sentences with citations
+    citation_texts = citation_content
+    results["citation_details"]["citation_texts"] = citation_texts
+    # Check if citations support the claim
+    all_citations_relevant = check_citations_relevance(
+        sentence, citation_texts, provider, model_name
+    )
+    if not all_citations_relevant:
+        results["citation_details"]["citation_relevance"] = "NOT_RELEVANT"
+        results["evaluation_details"]["model_responses"].append(
+            {
+                "type": "citation_relevance",
+                "response": "NO",
+                "context": {"num_citations": len(citation_texts)},
+            }
+        )
+        results["score"] = -1  # Penalize if any document doesn't support the claim
+    else:
+
+        results["citation_details"]["citation_relevance"] = "RELEVANT"
+        results["evaluation_details"]["model_responses"].append(
+            {
+                "type": "citation_relevance",
+                "response": "YES",
+                "context": {"num_citations": len(citation_texts)},
+            }
+        )
+
+        # Step 2: Batch check all nugget matches
+        if nuggets:
+            matched_nuggets = check_nugget_matches(
+                sentence, nuggets, provider, model_name
+            )
+            results["matched_nuggets"] = matched_nuggets
+            if matched_nuggets:
+                results["score"] = len(
+                    matched_nuggets
+                )  # Reward for each matched nugget
+            else:
+                results["score"] = 0  # Ignore if no nuggets are matched
+
+    return results
+
+
+def empty_response(sentence) -> Dict[str, Any]:
+    return {
+        "sentence": sentence,
+        "evaluation_path": [],
+        "matched_nuggets": [],
+        "score": 0,
+        "citation_details": {
+            "has_citations": False,
+            "citation_texts": [],
+            "citation_relevance": None,
+        },
+        "evaluation_details": {
+            "is_negative": None,
+            "requires_citation": None,
+            "is_first_instance": None,
+            "model_responses": [],
+        },
+    }
 
 
 def evaluate_report(
