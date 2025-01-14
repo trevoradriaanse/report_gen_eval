@@ -259,7 +259,7 @@ The framework evaluates AI-generated reports based on citation usage, factual ac
 
 ### Scoring Metrics
 
-!(Proposed output format)[assets/output_format.jpg]
+!(Proposed output format)[assets/output_format.png]
 
 The framework calculates two primary metrics:
 
