@@ -552,17 +552,7 @@ def process_w_citations(citation_content : Optional[List[str]],
     # citation_texts = citation_content
     # results["citation_details"]["citation_texts"] = citation_texts
     # Check if citations support the claim
-    citation_relevancy = check_citations_relevance_detail(
-        sentence, citation_content, provider, model_name
-    )
-    for i, rel in enumerate(citation_relevancy):
-        results["citation_details"]["citations"].append(
-            {
-                "text": citation_content[i],
-                "relevance": rel,
-            }
-        )
-        results['score'] += 1 if rel == "RELEVANT" else -1 # Reward if document is relevant, penalize if not
+    process_citation_relevancy(citation_content, model_name, provider, results, sentence)
     # else:
     #
     #     results["citation_details"]["citation_relevance"] = "RELEVANT"
@@ -588,6 +578,20 @@ def process_w_citations(citation_content : Optional[List[str]],
     #             results["score"] = 0  # Ignore if no nuggets are matched
 
     return results
+
+
+def process_citation_relevancy(citation_content, model_name, provider, results, sentence):
+    citation_relevancy = check_citations_relevance_detail(
+        sentence, citation_content, provider, model_name
+    )
+    for i, rel in enumerate(citation_relevancy):
+        results["citation_details"]["citations"].append(
+            {
+                "text": citation_content[i],
+                "relevance": rel,
+            }
+        )
+        results['score'] += 1 if rel == "RELEVANT" else -1  # Reward if document is relevant, penalize if not
 
 
 def empty_response(sentence) -> Dict[str, Any]:
