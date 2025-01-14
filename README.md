@@ -257,9 +257,9 @@ The framework evaluates AI-generated reports based on citation usage, factual ac
    - Reward (+1) for each nugget the sentence correctly answers
    - Ignore (0) if no nuggets are matched
 
-### Scoring Metrics
-
 ![Proposed output format](assets/output_format.png)
+
+### Scoring Metrics
 
 The framework calculates two primary metrics:
 
