@@ -259,6 +259,8 @@ The framework evaluates AI-generated reports based on citation usage, factual ac
 
 ### Scoring Metrics
 
+!(Proposed output format)[assets/output_format.png]
+
 The framework calculates two primary metrics:
 
 - **Recall** = (Number of unique nuggets correctly reported) / (Total number of nuggets)
