@@ -40,6 +40,18 @@ class ModelProvider:
     ANTHROPIC = "anthropic"
     TOGETHER = "together"
     HUGGINGFACE = "huggingface"
+    YES = "yes"
+    NO = "no"
+
+
+class YesProvider:
+    def invoke(self, messages):
+        return SystemMessage(content="YES")
+
+
+class NoProvider:
+    def invoke(self, messages):
+        return SystemMessage(content="NO")
 
 
 def get_model(provider: str = ModelProvider.TOGETHER, model_name: str = None) -> Any:
@@ -71,6 +83,10 @@ def get_model(provider: str = ModelProvider.TOGETHER, model_name: str = None) ->
             temperature=0,
             max_tokens=10,
         )
+    elif provider == ModelProvider.YES:
+        return YesProvider()
+    elif provider == ModelProvider.NO:
+        return NoProvider()
     elif provider == ModelProvider.HUGGINGFACE:
         model_name = model_name or "mistralai/Mistral-7B-Instruct-v0.2"
         llm = HuggingFaceEndpoint(

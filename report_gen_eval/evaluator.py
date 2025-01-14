@@ -72,10 +72,10 @@ load_dotenv()
 
 
 def check_citations_relevance(
-    sentence: str,
-    citation_texts: List[str],
-    provider: str = ModelProvider.TOGETHER,
-    model_name: str = None,
+        sentence: str,
+        citation_texts: List[str],
+        provider: str = ModelProvider.TOGETHER,
+        model_name: str = None,
 ) -> bool:
     """Check if all citations are relevant to a sentence.
 
@@ -100,6 +100,37 @@ def check_citations_relevance(
         CHECK_RELEVANCE_SYSTEM, user_prompts, provider, model_name
     )
     return all(response == "YES" for response in responses)
+
+
+def check_citations_relevance_detail(
+        sentence: str,
+        citation_texts: List[str],
+        provider: str = ModelProvider.TOGETHER,
+        model_name: str = None,
+) -> List[str]:
+    """Check if citations are relevant to a sentence.
+
+    This function is part of the citation validation step in the evaluation framework.
+    It checks whether each cited document actually supports the claim made in the sentence.
+
+    Args:
+        sentence: The sentence to check
+        citation_texts: List of citation texts to check against
+        provider: The model provider to use
+        model_name: Optional specific model name
+
+    Returns:
+        a list of True for each relevant citation, and False for irrelevant each citation
+    """
+    user_prompts = [
+        CHECK_RELEVANCE_USER.format(sentence=sentence, citation_content=doc_text)
+        for doc_text in citation_texts
+    ]
+
+    responses = batch_model_responses(
+        CHECK_RELEVANCE_SYSTEM, user_prompts, provider, model_name
+    )
+    return ["RELEVANT" if response == "YES" else "NOT_RELEVANT" for response in responses]
 
 
 def check_nugget_matches(
@@ -518,45 +549,43 @@ def process_w_citations(citation_content : Optional[List[str]],
                         results : Dict[str, Any],
                         sentence : str) -> Dict[str, Any]:
     # Process sentences with citations
-    citation_texts = citation_content
-    results["citation_details"]["citation_texts"] = citation_texts
+    # citation_texts = citation_content
+    # results["citation_details"]["citation_texts"] = citation_texts
     # Check if citations support the claim
-    all_citations_relevant = check_citations_relevance(
-        sentence, citation_texts, provider, model_name
+    citation_relevancy = check_citations_relevance_detail(
+        sentence, citation_content, provider, model_name
     )
-    if not all_citations_relevant:
-        results["citation_details"]["citation_relevance"] = "NOT_RELEVANT"
-        results["evaluation_details"]["model_responses"].append(
+    for i, rel in enumerate(citation_relevancy):
+        results["citation_details"]["citations"].append(
             {
-                "type": "citation_relevance",
-                "response": "NO",
-                "context": {"num_citations": len(citation_texts)},
+                "text": citation_content[i],
+                "relevance": rel,
             }
         )
-        results["score"] = -1  # Penalize if any document doesn't support the claim
-    else:
-
-        results["citation_details"]["citation_relevance"] = "RELEVANT"
-        results["evaluation_details"]["model_responses"].append(
-            {
-                "type": "citation_relevance",
-                "response": "YES",
-                "context": {"num_citations": len(citation_texts)},
-            }
-        )
-
-        # Step 2: Batch check all nugget matches
-        if nuggets:
-            matched_nuggets = check_nugget_matches(
-                sentence, nuggets, provider, model_name
-            )
-            results["matched_nuggets"] = matched_nuggets
-            if matched_nuggets:
-                results["score"] = len(
-                    matched_nuggets
-                )  # Reward for each matched nugget
-            else:
-                results["score"] = 0  # Ignore if no nuggets are matched
+        results['score'] += 1 if rel == "RELEVANT" else -1 # Reward if document is relevant, penalize if not
+    # else:
+    #
+    #     results["citation_details"]["citation_relevance"] = "RELEVANT"
+    #     results["evaluation_details"]["model_responses"].append(
+    #         {
+    #             "type": "citation_relevance",
+    #             "response": "YES",
+    #             "context": {"num_citations": len(citation_texts)},
+    #         }
+    #     )
+    #
+    #     # Step 2: Batch check all nugget matches
+    #     if nuggets:
+    #         matched_nuggets = check_nugget_matches(
+    #             sentence, nuggets, provider, model_name
+    #         )
+    #         results["matched_nuggets"] = matched_nuggets
+    #         if matched_nuggets:
+    #             results["score"] = len(
+    #                 matched_nuggets
+    #             )  # Reward for each matched nugget
+    #         else:
+    #             results["score"] = 0  # Ignore if no nuggets are matched
 
     return results
 
@@ -569,8 +598,7 @@ def empty_response(sentence) -> Dict[str, Any]:
         "score": 0,
         "citation_details": {
             "has_citations": False,
-            "citation_texts": [],
-            "citation_relevance": None,
+            "citations": [],
         },
         "evaluation_details": {
             "is_negative": None,
