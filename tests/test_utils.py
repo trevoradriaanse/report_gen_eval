@@ -7,4 +7,3 @@ def test_get_model_response_yes():
 
 def test_get_model_response_no():
     assert get_model_response('', '', ModelProvider.NO) == 'NO'
-
