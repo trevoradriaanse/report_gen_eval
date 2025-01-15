@@ -809,3 +809,15 @@ def load_nugget(nuggets_file, report, verbose):
                 logger.error(f"Failed to load nuggets: {str(e)}")
             raise
     return nuggets
+
+
+# filter nuggets by doc_id
+def filter_nuggets(nuggets : List[Dict[str, str]], doc_id):
+    # filtered_nuggets = []
+    # for nugget in nuggets:
+    #     for gold_answer in nugget["gold_answers"]:
+    #         if gold_answer["doc_id"] == doc_id:
+    #             filtered_nuggets.append(nugget)
+    filtered_nuggets = [nugget for nugget in nuggets for gold_answer in nugget["gold_answers"] if doc_id in gold_answer["citations"]]
+
+    return filtered_nuggets
