@@ -436,7 +436,7 @@ def evaluate_sentence_w_diagram(
     if verbose:
         logger.debug(f"Evaluating sentence: {sentence[:100]}...")
 
-    results = empty_response(sentence) #
+    results = empty_response(sentence)
 
     # Step 1: Check for citations
     has_citations = citation_content is not None and len(citation_content) > 0
@@ -549,38 +549,30 @@ def process_w_citations(citation_content : Optional[List[str]],
                         results : Dict[str, Any],
                         sentence : str) -> Dict[str, Any]:
     # Process sentences with citations
-    # citation_texts = citation_content
-    # results["citation_details"]["citation_texts"] = citation_texts
     # Check if citations support the claim
-    process_citation_relevancy(citation_content, model_name, provider, results, sentence)
-    # else:
-    #
-    #     results["citation_details"]["citation_relevance"] = "RELEVANT"
-    #     results["evaluation_details"]["model_responses"].append(
-    #         {
-    #             "type": "citation_relevance",
-    #             "response": "YES",
-    #             "context": {"num_citations": len(citation_texts)},
-    #         }
-    #     )
-    #
-    #     # Step 2: Batch check all nugget matches
-    #     if nuggets:
-    #         matched_nuggets = check_nugget_matches(
-    #             sentence, nuggets, provider, model_name
-    #         )
-    #         results["matched_nuggets"] = matched_nuggets
-    #         if matched_nuggets:
-    #             results["score"] = len(
-    #                 matched_nuggets
-    #             )  # Reward for each matched nugget
-    #         else:
-    #             results["score"] = 0  # Ignore if no nuggets are matched
+    results = process_citation_relevancy(citation_content, model_name, provider, results, sentence)
+
+    # Step 2: Batch check all nugget matches
+    if nuggets:
+        matched_nuggets = check_nugget_matches(
+            sentence, nuggets, provider, model_name
+        )
+        results["matched_nuggets"] = matched_nuggets
+        if matched_nuggets:
+            results["score"] = len(
+                matched_nuggets
+            )  # Reward for each matched nugget
+        else:
+            results["score"] = 0  # Ignore if no nuggets are matched
 
     return results
 
 
-def process_citation_relevancy(citation_content, model_name, provider, results, sentence):
+def process_citation_relevancy(citation_content : Optional[List[str]],
+                               model_name : str,
+                               provider : str,
+                               results : Dict[str, Any],
+                               sentence : str):
     citation_relevancy = check_citations_relevance_detail(
         sentence, citation_content, provider, model_name
     )
@@ -592,6 +584,8 @@ def process_citation_relevancy(citation_content, model_name, provider, results, 
             }
         )
         results['score'] += 1 if rel == "RELEVANT" else -1  # Reward if document is relevant, penalize if not
+
+    return results
 
 
 def empty_response(sentence) -> Dict[str, Any]:
@@ -653,33 +647,7 @@ def evaluate_report(
     penalized_sentences = 0
     citation_documents = {}  # Store all citation texts
 
-    # Load nuggets if file is provided
-    nuggets = None
-    if nuggets_file and os.path.exists(nuggets_file):
-        if verbose:
-            logger.info(f"Loading nuggets from {nuggets_file}")
-        try:
-            with open(nuggets_file, "r") as f:
-                for line in f:
-                    if not line.strip():
-                        continue
-                    nuggets_data = json.loads(line)
-                    if str(nuggets_data["query_id"]) == str(report["request_id"]):
-                        if verbose:
-                            logger.info(
-                                f"Found matching nuggets for report {report['request_id']}"
-                            )
-                            logger.info(f"Loaded {len(nuggets_data['items'])} nuggets")
-                        nuggets = nuggets_data["items"]
-                        break
-                if nuggets is None and verbose:
-                    logger.warning(
-                        f"No matching nuggets found for report {report['request_id']}"
-                    )
-        except Exception as e:
-            if verbose:
-                logger.error(f"Failed to load nuggets: {str(e)}")
-            raise
+    nuggets = load_nugget(nuggets_file, report, verbose)
 
     # Extract all sentences
     sentences = report["sentences"]
@@ -812,3 +780,34 @@ def evaluate_report(
         },
         "citation_documents": citation_documents,
     }
+
+
+def load_nugget(nuggets_file, report, verbose):
+    # Load nuggets if file is provided
+    nuggets = None
+    if nuggets_file and os.path.exists(nuggets_file):
+        if verbose:
+            logger.info(f"Loading nuggets from {nuggets_file}")
+        try:
+            with open(nuggets_file, "r") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    nuggets_data = json.loads(line)
+                    if str(nuggets_data["query_id"]) == str(report["request_id"]):
+                        if verbose:
+                            logger.info(
+                                f"Found matching nuggets for report {report['request_id']}"
+                            )
+                            logger.info(f"Loaded {len(nuggets_data['items'])} nuggets")
+                        nuggets = nuggets_data["items"]
+                        break
+                if nuggets is None and verbose:
+                    logger.warning(
+                        f"No matching nuggets found for report {report['request_id']}"
+                    )
+        except Exception as e:
+            if verbose:
+                logger.error(f"Failed to load nuggets: {str(e)}")
+            raise
+    return nuggets
