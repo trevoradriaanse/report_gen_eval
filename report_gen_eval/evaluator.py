@@ -104,7 +104,7 @@ def check_citations_relevance(
 
 def check_citations_relevance_detail(
         sentence: str,
-        citation_texts: List[str],
+        citations: List[Dict[str, str]],
         provider: str = ModelProvider.TOGETHER,
         model_name: str = None,
 ) -> List[str]:
@@ -123,8 +123,8 @@ def check_citations_relevance_detail(
         a list of True for each relevant citation, and False for irrelevant each citation
     """
     user_prompts = [
-        CHECK_RELEVANCE_USER.format(sentence=sentence, citation_content=doc_text)
-        for doc_text in citation_texts
+        CHECK_RELEVANCE_USER.format(sentence=sentence, citation_content=doc['text'])
+        for doc in citations
     ]
 
     responses = batch_model_responses(
@@ -568,42 +568,35 @@ def process_w_citations(citation_content : Optional[List[str]],
     return results
 
 
-def process_citation_relevancy(citation_content : Optional[List[str]],
+def process_citation_relevancy(citations : Optional[List[Dict[str, str]]],
                                model_name : str,
                                provider : str,
                                results : Dict[str, Any],
                                sentence : str):
     citation_relevancy = check_citations_relevance_detail(
-        sentence, citation_content, provider, model_name
+        sentence, citations, provider, model_name
     )
+    results["judgments"] = []
     for i, rel in enumerate(citation_relevancy):
-        results["citation_details"]["citations"].append(
+        results["judgments"].append(
             {
-                "text": citation_content[i],
-                "relevance": rel,
+                "judgment_type_id": "Cited document is relevant?",
+                "response": {"docid": citations[i]['doc_id'], "answer": rel,},
+                "evaluator": provider,
+                "provenance": None,
             }
         )
-        results['score'] += 1 if rel == "RELEVANT" else -1  # Reward if document is relevant, penalize if not
+        # results['score'] += 1 if rel == "RELEVANT" else -1  # Reward if document is relevant, penalize if not
 
     return results
 
 
 def empty_response(sentence) -> Dict[str, Any]:
     return {
-        "sentence": sentence,
-        "evaluation_path": [],
-        "matched_nuggets": [],
-        "score": 0,
-        "citation_details": {
-            "has_citations": False,
-            "citations": [],
-        },
-        "evaluation_details": {
-            "is_negative": None,
-            "requires_citation": None,
-            "is_first_instance": None,
-            "model_responses": [],
-        },
+        "segment_type": 'sentence',
+        "text": sentence,
+        "citations": [],
+        "judgments": [],
     }
 
 
@@ -660,24 +653,7 @@ def evaluate_report(
         if verbose:
             logger.info(f"Processing sentence {i+1}/{len(sentences)}")
         try:
-            # Extract citation texts from the sentence data
-            citation_texts = []
-            if "citations" in sentence_data and sentence_data["citations"]:
-                if isinstance(sentence_data["citations"], list):
-                    for doc_id in sentence_data["citations"]:
-                        # For each document ID, get the text from all possible collections
-                        for collection_id in report["collection_ids"]:
-                            title, text = get_text_from_id_fast(doc_id, collection_id)
-                            if title is not None and text is not None:
-                                doc_text = f"Title: {title}\n\nContent: {text}"
-                                citation_texts.append(doc_text)
-                                break  # Found the document, no need to check other collections
-                    # assert we found all the citations
-                    assert (
-                        len(citation_texts) == len(sentence_data["citations"])
-                    ), f"Expected {len(sentence_data['citations'])} citations, but found {len(citation_texts)}"
-                else:
-                    logger.warning(f"Unexpected citation format in sentence {i+1}")
+            citation_texts = extract_citation_texts(i, report, sentence_data)
 
             result = evaluate_sentence(
                 sentence=sentence_data["text"],
@@ -780,6 +756,28 @@ def evaluate_report(
         },
         "citation_documents": citation_documents,
     }
+
+
+def extract_citation_texts(sentence_number, report, sentence_data):
+    # Extract citation texts from the sentence data
+    citations = []
+    if "citations" in sentence_data and sentence_data["citations"]:
+        if isinstance(sentence_data["citations"], list):
+            for doc_id in sentence_data["citations"]:
+                # For each document ID, get the text from all possible collections
+                for collection_id in report["collection_ids"]:
+                    title, text = get_text_from_id_fast(doc_id, collection_id)
+                    if title is not None and text is not None:
+                        doc_text = f"Title: {title}\n\nContent: {text}"
+                        citations.append({"doc_id": doc_id, "text": doc_text})
+                        break  # Found the document, no need to check other collections
+            # assert we found all the citations
+            assert (
+                    len(citations) == len(sentence_data["citations"])
+            ), f"Expected {len(sentence_data['citations'])} citations, but found {len(citations)}"
+        else:
+            logger.warning(f"Unexpected citation format in sentence {sentence_number + 1}")
+    return citations
 
 
 def load_nugget(nuggets_file, report, verbose):

@@ -6,77 +6,66 @@ from report_gen_eval.utils import load_jsonl
 
 def test_empty_response():
     assert (empty_response('sent') ==
-            {"sentence": 'sent',
-             "evaluation_path": [],
-             "matched_nuggets": [],
-             "score": 0,
-             "citation_details": {
-                 "has_citations": False,
-                 "citations": [],
-             },
-             "evaluation_details": {
-                 "is_negative": None,
-                 "requires_citation": None,
-                 "is_first_instance": None,
-                 "model_responses": [],
-             }})
+            {"segment_type": 'sentence',
+             "text": 'sent',
+             "citations": [],
+             "judgments": [],
+             })
 
 
 def test_check_citations_relevance_detail_relevant():
     assert check_citations_relevance_detail('this is a test sentence',
-                                            ['this is a test citation'],
+                                            [{"doc_id": "D1", "text": 'this is a test citation'}],
                                             ModelProvider.YES) == ['RELEVANT']
 
 
 def test_check_citations_relevance_detail_not_relevant():
     assert check_citations_relevance_detail('this is a test sentence',
-                                            ['this is a test citation'],
+                                            [{"doc_id": "D1", "text": 'this is a test citation'}],
                                             ModelProvider.NO) == ['NOT_RELEVANT']
 
 
 def test_check_citations_relevance_detail_many_relevant():
     assert check_citations_relevance_detail('this is a test sentence',
-                                            ['this is a test citation',
-                                             'this is another test citation',
-                                             'this is yet another test citation'],
+                                            [{"doc_id": "D1", "text": 'this is a test citation'},
+                                            {"doc_id": "D2", "text": 'this is another citation'},
+                                            {"doc_id": "D3", "text": 'this is yet another test citation'}],
                                             ModelProvider.YES) == ['RELEVANT', 'RELEVANT', 'RELEVANT']
 
 
 def test_process_citation_relevancy():
-    assert process_citation_relevancy(['one citation',
-                                       'another citation',
-                                       'yet another citation'],
+    assert process_citation_relevancy([{"doc_id": "D1", "text":'one citation'},
+                                       {"doc_id": "D2", "text":'another citation'},
+                                       {"doc_id": "D3", "text":'yet another citation'}],
                                       '',
                                       ModelProvider.YES,
                                       empty_response('this is a test sentence'),
                                       'this is a test sentence'
-                                      ) == {"sentence": 'this is a test sentence',
-                                            "evaluation_path": [],
-                                            "matched_nuggets": [],
-                                            "score": 3,
-                                            "citation_details": {
-                                                "has_citations": False,
-                                                "citations": [
-                                                    {
-                                                        "text": 'one citation',
-                                                        "relevance": 'RELEVANT',
-                                                    },
-                                                    {
-                                                        "text": 'another citation',
-                                                        "relevance": 'RELEVANT',
-                                                    },
-                                                    {
-                                                        "text": 'yet another citation',
-                                                        "relevance": 'RELEVANT',
-                                                    }
-                                                ],
-                                            },
-                                            "evaluation_details": {
-                                                "is_negative": None,
-                                                "requires_citation": None,
-                                                "is_first_instance": None,
-                                                "model_responses": [],
-                                            }}
+                                      ) == {
+                                      "segment_type": "sentence",
+                                      "text": 'this is a test sentence',
+                                      "citations": [],
+                                      "judgments": [
+                                          {
+                                              "judgment_type_id": "Cited document is relevant?",
+                                              "response": {"docid": "D1", "answer": "RELEVANT",},
+                                              "evaluator": ModelProvider.YES,
+                                              "provenance": None,
+                                          },
+                                          {
+                                              "judgment_type_id": "Cited document is relevant?",
+                                              "response": {"docid": "D2", "answer": "RELEVANT",},
+                                              "evaluator": ModelProvider.YES,
+                                              "provenance": None,
+                                          },
+                                          {
+                                              "judgment_type_id": "Cited document is relevant?",
+                                              "response": {"docid": "D3", "answer": "RELEVANT",},
+                                              "evaluator": ModelProvider.YES,
+                                              "provenance": None,
+                                          },
+                                          ],
+    }
 
 
 def test_load_nugget():
