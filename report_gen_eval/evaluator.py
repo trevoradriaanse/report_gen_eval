@@ -170,13 +170,13 @@ def check_nugget_matches(
                 NUGGET_AGREEMENT_USER.format(
                     sentence=sentence,
                     nugget_question=nugget["question_text"],
-                    nugget_answer=answer,
+                    nugget_answer=answer["answer"],
                 )
             )
             nugget_map.append(
                 {
                     "question_text": nugget["question_text"],
-                    "matched_answer": answer,
+                    "matched_answer": answer["answer"],
                     "importance": nugget["info"]["importance"],
                 }
             )
@@ -397,7 +397,7 @@ def evaluate_sentence(
 
 def evaluate_sentence_w_diagram(
         sentence: str,
-        citation_content: Optional[List[str]] = None,
+        citations: Optional[List[Dict[str, str]]] = None,
         previous_sentences: Optional[List[str]] = None,
         nuggets: Optional[List[Dict[str, Any]]] = None,
         provider: str = ModelProvider.TOGETHER,
@@ -417,7 +417,7 @@ def evaluate_sentence_w_diagram(
 
     Args:
         sentence: The sentence to evaluate
-        citation_content: List of citation texts
+        citations: List of citations
         previous_sentences: List of sentences that came before this one (for first instance checking)
         nuggets: List of nuggets to check against
         provider: The model provider to use
@@ -439,22 +439,24 @@ def evaluate_sentence_w_diagram(
     results = empty_response(sentence)
 
     # Step 1: Check for citations
-    has_citations = citation_content is not None and len(citation_content) > 0
+    has_citations = citations is not None and len(citations) > 0
     if verbose:
         logger.debug(f"Has citations: {has_citations}")
         if has_citations:
-            logger.debug(f"Citations: {citation_content}")
+            logger.debug(f"Citations: {citations}")
 
-    results["citation_details"]["has_citations"] = has_citations
-    results["evaluation_path"].append(1)
+    # results["citation_details"]["has_citations"] = has_citations
+    # results["evaluation_path"].append(1)
 
     if has_citations:
-        results = process_w_citations(citation_content, model_name, nuggets, provider, results, sentence)
+        results = process_w_citations(citations, model_name, nuggets, provider, results, sentence)
     else:
-        results = process_wo_citations(model_name, nuggets, previous_sentences, provider, results, sentence)
+        # results = process_wo_citations(model_name, nuggets, previous_sentences, provider, results, sentence)
+        pass
 
     if verbose:
-        logger.debug(f"Sentence evaluation complete. Score: {results['score']}")
+        logger.debug(f"Sentence evaluation complete.")
+                     # f" Score: {results['score']}")
     return results
 
 
@@ -542,7 +544,7 @@ def process_wo_citations(model_name : str,
     return results
 
 
-def process_w_citations(citation_content : Optional[List[str]],
+def process_w_citations(citations : Optional[List[Dict[str, str]]],
                         model_name : str,
                         nuggets: Optional[List[Dict[str, Any]]],
                         provider : str,
@@ -550,22 +552,24 @@ def process_w_citations(citation_content : Optional[List[str]],
                         sentence : str) -> Dict[str, Any]:
     # Process sentences with citations
     # Check if citations support the claim
-    results = process_citation_relevancy(citation_content, model_name, provider, results, sentence)
+    results = process_citation_relevancy(citations, model_name, provider, results, sentence)
 
-    # Step 2: Batch check all nugget matches
-    if nuggets:
+    return process_nuggets(model_name, nuggets, provider, results, sentence)
+
+
+def process_nuggets(model_name, nuggets, provider, results, sentence):
+    for citation in results["citations"]:
         matched_nuggets = check_nugget_matches(
-            sentence, nuggets, provider, model_name
+            sentence, filter_nuggets(nuggets, citation), provider, model_name
         )
-        results["matched_nuggets"] = matched_nuggets
-        if matched_nuggets:
-            results["score"] = len(
-                matched_nuggets
-            )  # Reward for each matched nugget
-        else:
-            results["score"] = 0  # Ignore if no nuggets are matched
+        add_judgment(results["judgments"],
+                     "Sentence answers question?",
+                     {"matched_nuggets": matched_nuggets},
+                     provider,
+                     citation,
+                     )
 
-    return results
+        return results
 
 
 def process_citation_relevancy(citations : Optional[List[Dict[str, str]]],
@@ -576,19 +580,28 @@ def process_citation_relevancy(citations : Optional[List[Dict[str, str]]],
     citation_relevancy = check_citations_relevance_detail(
         sentence, citations, provider, model_name
     )
-    results["judgments"] = []
+    results["citations"] = [citation["doc_id"] for citation in citations]
     for i, rel in enumerate(citation_relevancy):
-        results["judgments"].append(
-            {
-                "judgment_type_id": "Cited document is relevant?",
-                "response": {"docid": citations[i]['doc_id'], "answer": rel,},
-                "evaluator": provider,
-                "provenance": None,
-            }
-        )
+        add_judgment(results["judgments"],
+                     "Cited document is relevant?",
+                     {"doc_id": citations[i]['doc_id'], "answer": rel,},
+                     provider,
+                     citations[i]['doc_id'])
         # results['score'] += 1 if rel == "RELEVANT" else -1  # Reward if document is relevant, penalize if not
 
     return results
+
+
+# this function haas the side effect of modifying the judgments list
+def add_judgment(judgments: List[Dict[str, str]], judgment_type: str, response: Any, provider: str, provenance: str):
+    judgments.append(
+        {
+            "judgment_type_id": judgment_type,
+            "response": response,
+            "evaluator": provider,
+            "provenance": provenance,
+        }
+    )
 
 
 def empty_response(sentence) -> Dict[str, Any]:
@@ -597,6 +610,7 @@ def empty_response(sentence) -> Dict[str, Any]:
         "text": sentence,
         "citations": [],
         "judgments": [],
+
     }
 
 
@@ -640,7 +654,7 @@ def evaluate_report(
     penalized_sentences = 0
     citation_documents = {}  # Store all citation texts
 
-    nuggets = load_nugget(nuggets_file, report, verbose)
+    nuggets = load_nuggets(nuggets_file, report, verbose)
 
     # Extract all sentences
     sentences = report["sentences"]
@@ -653,11 +667,11 @@ def evaluate_report(
         if verbose:
             logger.info(f"Processing sentence {i+1}/{len(sentences)}")
         try:
-            citation_texts = extract_citation_texts(i, report, sentence_data)
+            citations = extract_citation_texts(i, report, sentence_data)
 
-            result = evaluate_sentence(
+            result = evaluate_sentence_w_diagram(
                 sentence=sentence_data["text"],
-                citation_content=citation_texts if citation_texts else None,
+                citations=citations if citations else None,
                 previous_sentences=all_sentence_texts[:i] if i > 0 else None,
                 nuggets=nuggets,
                 provider=provider,
@@ -666,44 +680,44 @@ def evaluate_report(
             )
 
             # Update metrics
-            if result["matched_nuggets"]:
-                if verbose:
-                    logger.debug(
-                        f"Sentence {i+1} matched {len(result['matched_nuggets'])} nuggets"
-                    )
-                for nugget in result["matched_nuggets"]:
-                    unique_nuggets_matched.add(
-                        (nugget["question_text"], nugget["matched_answer"])
-                    )
-
-            if result["score"] != 0:
-                total_sentences += 1
-                if result["score"] > 0:
-                    rewarded_sentences += 1
-                elif result["score"] < 0:
-                    penalized_sentences += 1
-
-            # Store citation texts if present
-            if result["citation_details"]["citation_texts"]:
-                citation_indices = []  # Track which citations were used for this sentence
-                for text in result["citation_details"]["citation_texts"]:
-                    # Find existing citation or create new one
-                    citation_key = None
-                    for key, existing_text in citation_documents.items():
-                        if text == existing_text:
-                            citation_key = key
-                            break
-
-                    if citation_key is None:
-                        citation_key = f"citation_{len(citation_documents)}"
-                        citation_documents[citation_key] = text
-
-                    citation_indices.append(citation_key)
-
-                # Store the citation indices with the result
-                result["citation_indices"] = citation_indices
-
-            result["sentence_index"] = i
+            # if result["matched_nuggets"]:
+            #     if verbose:
+            #         logger.debug(
+            #             f"Sentence {i+1} matched {len(result['matched_nuggets'])} nuggets"
+            #         )
+            #     for nugget in result["matched_nuggets"]:
+            #         unique_nuggets_matched.add(
+            #             (nugget["question_text"], nugget["matched_answer"])
+            #         )
+            #
+            # if result["score"] != 0:
+            #     total_sentences += 1
+            #     if result["score"] > 0:
+            #         rewarded_sentences += 1
+            #     elif result["score"] < 0:
+            #         penalized_sentences += 1
+            #
+            # # Store citation texts if present
+            # if result["citation_details"]["citation_texts"]:
+            #     citation_indices = []  # Track which citations were used for this sentence
+            #     for text in result["citation_details"]["citation_texts"]:
+            #         # Find existing citation or create new one
+            #         citation_key = None
+            #         for key, existing_text in citation_documents.items():
+            #             if text == existing_text:
+            #                 citation_key = key
+            #                 break
+            #
+            #         if citation_key is None:
+            #             citation_key = f"citation_{len(citation_documents)}"
+            #             citation_documents[citation_key] = text
+            #
+            #         citation_indices.append(citation_key)
+            #
+            #     # Store the citation indices with the result
+            #     result["citation_indices"] = citation_indices
+            #
+            # result["sentence_index"] = i
             results.append(result)
 
         except Exception as e:
@@ -718,43 +732,43 @@ def evaluate_report(
                     "score": 0,
                     "error": str(e),
                     "citation_details": {
-                        "has_citations": bool(citation_texts),
-                        "citation_texts": citation_texts if citation_texts else [],
+                        "has_citations": bool(citations),
+                        "citation_texts": citations if citations else [],
                     },
                 }
             )
 
     # Calculate overall metrics
-    total_nuggets = (
-        sum(len(nugget["gold_answers"]) for nugget in nuggets) if nuggets else 0
-    )
-    recall = len(unique_nuggets_matched) / total_nuggets if total_nuggets > 0 else 0
-    precision = rewarded_sentences / total_sentences if total_sentences > 0 else 0
-
-    if verbose:
-        logger.info(
-            f"Evaluation complete. Metrics: recall={recall:.2f}, precision={precision:.2f}"
-        )
-        logger.info(f"Matched {len(unique_nuggets_matched)}/{total_nuggets} nuggets")
-        logger.info(
-            f"Sentences: {rewarded_sentences} rewarded, {penalized_sentences} penalized, {total_sentences} total"
-        )
+    # total_nuggets = (
+    #     sum(len(nugget["gold_answers"]) for nugget in nuggets) if nuggets else 0
+    # )
+    # recall = len(unique_nuggets_matched) / total_nuggets if total_nuggets > 0 else 0
+    # precision = rewarded_sentences / total_sentences if total_sentences > 0 else 0
+    #
+    # if verbose:
+    #     logger.info(
+    #         f"Evaluation complete. Metrics: recall={recall:.2f}, precision={precision:.2f}"
+    #     )
+    #     logger.info(f"Matched {len(unique_nuggets_matched)}/{total_nuggets} nuggets")
+    #     logger.info(
+    #         f"Sentences: {rewarded_sentences} rewarded, {penalized_sentences} penalized, {total_sentences} total"
+    #     )
 
     return {
         "request_id": report["request_id"],
         "run_id": report["run_id"],
         "collection_ids": report["collection_ids"],
-        "sentence_results": results,
-        "metrics": {
-            "recall": recall,
-            "precision": precision,
-            "unique_nuggets_matched": len(unique_nuggets_matched),
-            "total_nuggets": total_nuggets,
-            "rewarded_sentences": rewarded_sentences,
-            "penalized_sentences": penalized_sentences,
-            "total_evaluated_sentences": total_sentences,
-        },
-        "citation_documents": citation_documents,
+        "segments": results,
+        # "metrics": {
+        #     "recall": recall,
+        #     "precision": precision,
+        #     "unique_nuggets_matched": len(unique_nuggets_matched),
+        #     "total_nuggets": total_nuggets,
+        #     "rewarded_sentences": rewarded_sentences,
+        #     "penalized_sentences": penalized_sentences,
+        #     "total_evaluated_sentences": total_sentences,
+        # },
+        # "citation_documents": citation_documents,
     }
 
 
@@ -780,7 +794,7 @@ def extract_citation_texts(sentence_number, report, sentence_data):
     return citations
 
 
-def load_nugget(nuggets_file, report, verbose):
+def load_nuggets(nuggets_file, report, verbose):
     # Load nuggets if file is provided
     nuggets = None
     if nuggets_file and os.path.exists(nuggets_file):
@@ -818,6 +832,7 @@ def filter_nuggets(nuggets : List[Dict[str, str]], doc_id):
     #     for gold_answer in nugget["gold_answers"]:
     #         if gold_answer["doc_id"] == doc_id:
     #             filtered_nuggets.append(nugget)
+    print(nuggets)
     filtered_nuggets = [nugget for nugget in nuggets for gold_answer in nugget["gold_answers"] if doc_id in gold_answer["citations"]]
 
     return filtered_nuggets

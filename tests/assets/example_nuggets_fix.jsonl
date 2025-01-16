@@ -1,0 +1,1 @@
+{"query_id": "300", "test_collection": "rus_2024", "query_text": "Example query text for testing", "hash": 1111, "items": [{"query_id": "300", "info": {"importance": "vital", "used": false}, "question_id": "300_test", "question_text": "How much did suicides rise by in 2020?", "gold_answers": [{"answer":"3.7%","citations":[]}]}]}
