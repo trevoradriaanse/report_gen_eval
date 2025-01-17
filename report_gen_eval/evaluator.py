@@ -451,8 +451,7 @@ def evaluate_sentence_w_diagram(
     if has_citations:
         results = process_w_citations(citations, model_name, nuggets, provider, results, sentence)
     else:
-        # results = process_wo_citations(model_name, nuggets, previous_sentences, provider, results, sentence)
-        pass
+        results = process_wo_citations(model_name, nuggets, previous_sentences, provider, results, sentence)
 
     if verbose:
         logger.debug(f"Sentence evaluation complete.")
@@ -466,6 +465,72 @@ def process_wo_citations(model_name : str,
                          provider : str,
                          results : Dict[str, Any],
                          sentence : str) -> Dict[str, Any]:
+    is_negative = is_sentence_negative(model_name, provider, sentence)
+    add_judgment(results["judgments"],
+                 "Negative assertion?",
+                 {"is_negative": is_negative},
+                 provider,
+                 sentence)
+    if is_negative == "YES":
+        # For negative statements, batch check all nugget matches
+        if nuggets:
+            matched_nuggets = check_nugget_matches(
+                sentence, nuggets, provider, model_name
+            )
+            add_judgment(results["judgments"],
+                         "Nugget agrees?",
+                         {"matched_nuggets": matched_nuggets},
+                         provider,
+                         sentence)
+    else:
+        requires_cite = check_requires_citation(model_name, provider, sentence)
+        add_judgment(results["judgments"],
+                     "Requires citation?",
+                     {"requires_citation": requires_cite},
+                     provider,
+                     sentence)
+
+        if requires_cite == "YES":
+            # Check if it's the first instance (this must be sequential)
+            if previous_sentences:
+                is_first = first_instance(model_name, previous_sentences, provider, sentence)
+                add_judgment(results["judgments"],
+                             "First instance?",
+                             {"is_first_instance": is_first,
+                             "num_previous_sentences": len(previous_sentences)},
+                             provider,
+                             sentence)
+
+    return results
+
+
+def first_instance(model_name, previous_sentences, provider, sentence):
+    is_first = get_model_response(
+        FIRST_INSTANCE_SYSTEM,
+        FIRST_INSTANCE_USER.format(
+            sentence=sentence,
+            previous_sentences="\n".join(previous_sentences),
+        ),
+        provider=provider,
+        model_name=model_name,
+    )
+    is_first = modify_model_response(is_first)
+    return is_first
+
+
+def check_requires_citation(model_name, provider, sentence):
+    # For non-negative statements without citations
+    requires_cite = get_model_response(
+        REQUIRES_CITATION_SYSTEM,
+        REQUIRES_CITATION_USER.format(sentence=sentence),
+        provider=provider,
+        model_name=model_name,
+    )
+    requires_cite = modify_model_response(requires_cite)
+    return requires_cite
+
+
+def is_sentence_negative(model_name, provider, sentence):
     # Process sentences without citations
     is_negative = get_model_response(
         CHECK_NEGATIVE_SYSTEM,
@@ -474,74 +539,7 @@ def process_wo_citations(model_name : str,
         model_name=model_name,
     )
     is_negative = modify_model_response(is_negative)
-    results["evaluation_details"]["is_negative"] = is_negative == "YES"
-    results["evaluation_details"]["model_responses"].append(
-        {"type": "check_negative", "response": is_negative}
-    )
-    if is_negative == "YES":
-        # For negative statements, batch check all nugget matches
-        if nuggets:
-            matched_nuggets = check_nugget_matches(
-                sentence, nuggets, provider, model_name
-            )
-            results["matched_nuggets"] = matched_nuggets
-            if matched_nuggets:
-                results["score"] = (
-                    1  # Reward if any nugget confirms negative statement
-                )
-            else:
-                results[
-                    "score"
-                ] = -1  # Penalize if no nugget supports negative claim
-    else:
-        # For non-negative statements without citations
-        requires_cite = get_model_response(
-            REQUIRES_CITATION_SYSTEM,
-            REQUIRES_CITATION_USER.format(sentence=sentence),
-            provider=provider,
-            model_name=model_name,
-        )
-        requires_cite = modify_model_response(requires_cite)
-        results["evaluation_details"]["requires_citation"] = requires_cite == "YES"
-        results["evaluation_details"]["model_responses"].append(
-            {"type": "requires_citation", "response": requires_cite}
-        )
-
-        if requires_cite == "YES":
-            # Check if it's the first instance (this must be sequential)
-            if previous_sentences:
-                is_first = get_model_response(
-                    FIRST_INSTANCE_SYSTEM,
-                    FIRST_INSTANCE_USER.format(
-                        sentence=sentence,
-                        previous_sentences="\n".join(previous_sentences),
-                    ),
-                    provider=provider,
-                    model_name=model_name,
-                )
-                is_first = modify_model_response(is_first)
-                results["evaluation_details"]["is_first_instance"] = (
-                        is_first == "YES"
-                )
-                results["evaluation_details"]["model_responses"].append(
-                    {
-                        "type": "first_instance",
-                        "response": is_first,
-                        "context": {
-                            "num_previous_sentences": len(previous_sentences)
-                        },
-                    }
-                )
-                results["score"] = (
-                    -1 if is_first == "YES" else 0
-                )  # Penalize first occurrence, ignore repeats
-            else:
-                results["evaluation_details"]["is_first_instance"] = True
-                results["score"] = -1  # Penalize first occurrence
-        else:
-            results["score"] = 0  # Ignore statements not requiring citations
-
-    return results
+    return is_negative
 
 
 def process_w_citations(citations : Optional[List[Dict[str, str]]],
@@ -832,7 +830,6 @@ def filter_nuggets(nuggets : List[Dict[str, str]], doc_id):
     #     for gold_answer in nugget["gold_answers"]:
     #         if gold_answer["doc_id"] == doc_id:
     #             filtered_nuggets.append(nugget)
-    print(nuggets)
     filtered_nuggets = [nugget for nugget in nuggets for gold_answer in nugget["gold_answers"] if doc_id in gold_answer["citations"]]
 
     return filtered_nuggets

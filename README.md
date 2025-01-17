@@ -14,6 +14,11 @@ This repository implements the evaluation framework from ["On the Evaluation of 
 - [Evaluation Framework](#evaluation-framework)
 - [Citation](#citation)
 
+## TODO
+
+- [ ] Implement the lower left corner of the scoring matrix - Report sentence attested?
+- [ ] This branch implements the generic version of output - layer a scoring system on top of it
+
 ## Installation
 
 ### Option 1: Using UV (Recommended)
