@@ -613,6 +613,207 @@ def empty_response(sentence) -> Dict[str, Any]:
 
 
 def evaluate_report(
+        report: Dict[str, Any],
+        nuggets_file: str = "example_nuggets.jsonl",
+        provider: str = ModelProvider.TOGETHER,
+        model_name: str = None,
+        verbose: bool = False,
+) -> Dict[str, Any]:
+    """Evaluate an entire report according to the evaluation framework.
+
+    Processes each sentence in the report sequentially (required for first instance checking)
+    and calculates overall metrics.
+
+    Args:
+        report: The report to evaluate, containing sentences and metadata
+        nuggets_file: Path to the JSONL file containing evaluation nuggets
+        provider: The model provider to use
+        model_name: Optional specific model name
+        verbose: Whether to log debug information
+
+    Returns:
+        Dictionary containing:
+        - request_id: The original request ID
+        - run_id: The run ID
+        - collection_ids: The collection IDs
+        - sentence_results: List of results for each sentence
+        - metrics: Overall metrics including recall and precision
+        - citation_documents: Map of citation texts to their indices
+    """
+    if verbose:
+        logger.info(
+            f"Starting evaluation of report {report.get('request_id', 'unknown')}"
+        )
+
+    results = []
+    unique_nuggets_matched = set()
+    total_sentences = 0
+    rewarded_sentences = 0
+    penalized_sentences = 0
+    citation_documents = {}  # Store all citation texts
+
+    # Load nuggets if file is provided
+    nuggets = None
+    if nuggets_file and os.path.exists(nuggets_file):
+        if verbose:
+            logger.info(f"Loading nuggets from {nuggets_file}")
+        try:
+            with open(nuggets_file, "r") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    nuggets_data = json.loads(line)
+                    if str(nuggets_data["query_id"]) == str(report["request_id"]):
+                        if verbose:
+                            logger.info(
+                                f"Found matching nuggets for report {report['request_id']}"
+                            )
+                            logger.info(f"Loaded {len(nuggets_data['items'])} nuggets")
+                        nuggets = nuggets_data["items"]
+                        break
+                if nuggets is None and verbose:
+                    logger.warning(
+                        f"No matching nuggets found for report {report['request_id']}"
+                    )
+        except Exception as e:
+            if verbose:
+                logger.error(f"Failed to load nuggets: {str(e)}")
+            raise
+
+    # Extract all sentences
+    sentences = report["sentences"]
+    all_sentence_texts = [s["text"] for s in sentences]
+    if verbose:
+        logger.info(f"Processing {len(sentences)} sentences")
+
+    # Process sentences sequentially (required for first instance checking)
+    for i, sentence_data in enumerate(sentences):
+        if verbose:
+            logger.info(f"Processing sentence {i+1}/{len(sentences)}")
+        try:
+            # Extract citation texts from the sentence data
+            citation_texts = []
+            if "citations" in sentence_data and sentence_data["citations"]:
+                if isinstance(sentence_data["citations"], list):
+                    for doc_id in sentence_data["citations"]:
+                        # For each document ID, get the text from all possible collections
+                        for collection_id in report["collection_ids"]:
+                            title, text = get_text_from_id_fast(doc_id, collection_id)
+                            if title is not None and text is not None:
+                                doc_text = f"Title: {title}\n\nContent: {text}"
+                                citation_texts.append(doc_text)
+                                break  # Found the document, no need to check other collections
+                    # assert we found all the citations
+                    assert (
+                            len(citation_texts) == len(sentence_data["citations"])
+                    ), f"Expected {len(sentence_data['citations'])} citations, but found {len(citation_texts)}"
+                else:
+                    logger.warning(f"Unexpected citation format in sentence {i+1}")
+
+            result = evaluate_sentence(
+                sentence=sentence_data["text"],
+                citation_content=citation_texts if citation_texts else None,
+                previous_sentences=all_sentence_texts[:i] if i > 0 else None,
+                nuggets=nuggets,
+                provider=provider,
+                model_name=model_name,
+                verbose=verbose,
+            )
+
+            # Update metrics
+            if result["matched_nuggets"]:
+                if verbose:
+                    logger.debug(
+                        f"Sentence {i+1} matched {len(result['matched_nuggets'])} nuggets"
+                    )
+                for nugget in result["matched_nuggets"]:
+                    unique_nuggets_matched.add(
+                        (nugget["question_text"], nugget["matched_answer"])
+                    )
+
+            if result["score"] != 0:
+                total_sentences += 1
+                if result["score"] > 0:
+                    rewarded_sentences += 1
+                elif result["score"] < 0:
+                    penalized_sentences += 1
+
+            # Store citation texts if present
+            if result["citation_details"]["citation_texts"]:
+                citation_indices = []  # Track which citations were used for this sentence
+                for text in result["citation_details"]["citation_texts"]:
+                    # Find existing citation or create new one
+                    citation_key = None
+                    for key, existing_text in citation_documents.items():
+                        if text == existing_text:
+                            citation_key = key
+                            break
+
+                    if citation_key is None:
+                        citation_key = f"citation_{len(citation_documents)}"
+                        citation_documents[citation_key] = text
+
+                    citation_indices.append(citation_key)
+
+                # Store the citation indices with the result
+                result["citation_indices"] = citation_indices
+
+            result["sentence_index"] = i
+            results.append(result)
+
+        except Exception as e:
+            if verbose:
+                logger.error(f"Error processing sentence {i+1}: {str(e)}")
+                # add traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+            results.append(
+                {
+                    "sentence": sentence_data["text"],
+                    "sentence_index": i,
+                    "score": 0,
+                    "error": str(e),
+                    "citation_details": {
+                        "has_citations": bool(citation_texts),
+                        "citation_texts": citation_texts if citation_texts else [],
+                    },
+                }
+            )
+
+    # Calculate overall metrics
+    total_nuggets = (
+        sum(len(nugget["gold_answers"]) for nugget in nuggets) if nuggets else 0
+    )
+    recall = len(unique_nuggets_matched) / total_nuggets if total_nuggets > 0 else 0
+    precision = rewarded_sentences / total_sentences if total_sentences > 0 else 0
+
+    if verbose:
+        logger.info(
+            f"Evaluation complete. Metrics: recall={recall:.2f}, precision={precision:.2f}"
+        )
+        logger.info(f"Matched {len(unique_nuggets_matched)}/{total_nuggets} nuggets")
+        logger.info(
+            f"Sentences: {rewarded_sentences} rewarded, {penalized_sentences} penalized, {total_sentences} total"
+        )
+
+    return {
+        "request_id": report["request_id"],
+        "run_id": report["run_id"],
+        "collection_ids": report["collection_ids"],
+        "sentence_results": results,
+        "metrics": {
+            "recall": recall,
+            "precision": precision,
+            "unique_nuggets_matched": len(unique_nuggets_matched),
+            "total_nuggets": total_nuggets,
+            "rewarded_sentences": rewarded_sentences,
+            "penalized_sentences": penalized_sentences,
+            "total_evaluated_sentences": total_sentences,
+        },
+        "citation_documents": citation_documents,
+    }
+
+
+def evaluate_report_generic_format(
     report: Dict[str, Any],
     nuggets_file: str = "example_nuggets.jsonl",
     provider: str = ModelProvider.TOGETHER,

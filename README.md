@@ -17,7 +17,8 @@ This repository implements the evaluation framework from ["On the Evaluation of 
 ## TODO
 
 - [ ] Implement the lower left corner of the scoring matrix - Report sentence attested?
-- [ ] This branch implements the generic version of output - layer a scoring system on top of it
+- [ ] This branch (generic_format_nugget_w_citations) implements the generic version of output - layer a scoring system on top of it
+- [ ] To work with the generic format on the master branch, change the evaluate_report_generic_format function to evaluate_report and evaluate_report to something else
 
 ## Installation
 
