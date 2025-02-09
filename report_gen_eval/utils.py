@@ -15,7 +15,6 @@ from random import uniform
 import pickle
 import json
 from typing import Any, List, Optional, Dict, Tuple
-from pathlib import Path
 from langchain.schema import SystemMessage, HumanMessage
 from langchain_together import ChatTogether
 from langchain_community.chat_models import ChatAnthropic
@@ -57,7 +56,10 @@ def get_model(provider: str = ModelProvider.TOGETHER, model_name: str = None) ->
     """
     if provider == ModelProvider.OPENAI:
         return ChatOpenAI(
-            model_name=model_name or "gpt-4o-2024-11-20", temperature=0, max_tokens=10
+            model_name=model_name or "gpt-4o-2024-11-20",
+            temperature=0,
+            max_tokens=10,
+            seed=12345,
         )
     elif provider == ModelProvider.ANTHROPIC:
         return ChatAnthropic(
@@ -70,6 +72,7 @@ def get_model(provider: str = ModelProvider.TOGETHER, model_name: str = None) ->
             model=model_name or "meta-llama/Llama-3.3-70B-Instruct-Turbo",
             temperature=0,
             max_tokens=10,
+            seed=12345,
         )
     elif provider == ModelProvider.HUGGINGFACE:
         model_name = model_name or "mistralai/Mistral-7B-Instruct-v0.2"
@@ -287,6 +290,24 @@ def load_jsonl(file_path: str) -> List[Dict]:
             if line.strip():
                 data.append(json.loads(line))
     return data
+
+
+def citation_classifier(user_prompt: str) -> Any:
+    """Runs a text generation model to produce response YES/NO
+
+    Args:
+        user_prompt: The user prompt to use
+
+    Returns:
+        A configured LangChain chat model instance
+    """
+    model_name = "selink/llama32-1b-finetune-citation-ensemble-labels"
+    llm = HuggingFaceEndpoint(repo_id=model_name, task="text-generation")
+    model = ChatHuggingFace(llm=llm)
+    response = model.invoke([HumanMessage(content=user_prompt)])
+    response_text = response.content.strip().upper()
+
+    return response_text
 
 
 def save_jsonl(data: List[Dict], file_path: str):

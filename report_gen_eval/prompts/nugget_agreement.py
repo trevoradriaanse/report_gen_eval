@@ -61,4 +61,4 @@ Sentence: {sentence}
 Question: {nugget_question}
 Answer: {nugget_answer}
 
-Answer (YES/NO):""" 
+Answer (YES/NO):"""

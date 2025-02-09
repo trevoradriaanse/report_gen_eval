@@ -45,7 +45,7 @@ class TestError(Exception):
 @pytest.fixture
 def default_provider():
     """Default model provider for tests."""
-    return ModelProvider.TOGETHER
+    return ModelProvider.OPENAI
 
 
 def validate_response(response: str, expected: str, context: str):
@@ -79,9 +79,9 @@ def test_model_providers():
         assert response is not None, "Together model response failed"
 
         # Test Hugging Face
-        # response = get_model_response(
-        #     "test", "test", provider=ModelProvider.HUGGINGFACE
-        # )
+        response = get_model_response(
+            "test", "test", provider=ModelProvider.HUGGINGFACE
+        )
         assert response is not None, "Hugging Face model response failed"
 
         # Test invalid provider
@@ -198,13 +198,15 @@ def test_nugget_agreement(nugget_examples):
             response = get_model_response(
                 NUGGET_AGREEMENT_SYSTEM,
                 NUGGET_AGREEMENT_USER.format(
-                    sentence=example["text"], nugget_question=example['question_text'], nugget_answer=answer
+                    sentence=example["text"],
+                    nugget_question=example["question_text"],
+                    nugget_answer=answer,
                 ),
             )
             assert response == example["expected"]
 
 
-@pytest.mark.skip("no test pkl")
+# @pytest.mark.skip("no test pkl")
 def test_evaluate_report():
     """Test report evaluation with nuggets."""
     report = {
@@ -242,4 +244,5 @@ def test_evaluate_report():
         f.flush()
 
         results = evaluate_report(report, nuggets_file=f.name)
+        print(results)
         assert results["metrics"]["unique_nuggets_matched"] == 1

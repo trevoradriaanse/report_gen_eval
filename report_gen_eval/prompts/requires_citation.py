@@ -43,4 +43,6 @@ Answer (YES/NO): NO
 
 Sentence: {sentence}
 
-Answer (YES/NO):""" 
+Answer (YES/NO):"""
+
+USER_PROMPT_SHORT = "Does this sentence require a citation to support its claims? \nSentence: {sentence} \nAnswer (YES/NO):"

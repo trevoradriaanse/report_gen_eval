@@ -35,9 +35,8 @@ The framework calculates two primary metrics:
 import os
 import traceback
 from dotenv import load_dotenv
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 import json
-from tqdm import tqdm
 import logging
 
 # Import utility functions
@@ -47,8 +46,6 @@ from .utils import (
     modify_model_response,
     get_text_from_id_fast,
     batch_model_responses,
-    load_jsonl,
-    save_jsonl,
 )
 
 # Import all prompts
@@ -319,6 +316,15 @@ def evaluate_sentence(
                 provider=provider,
                 model_name=model_name,
             )
+
+            # requires_cite_2 = citation_classifier(
+            #    REQUIRES_CITATION_USER_SHORT.format(sentence=sentence),
+            # )
+
+            # print("prompt:", REQUIRES_CITATION_SYSTEM)
+            # print("format prompt:", REQUIRES_CITATION_USER.format(sentence=sentence))
+            # print("REQUIRES_CITE (model then HF),", requires_cite, requires_cite_2)
+
             requires_cite = modify_model_response(requires_cite)
             results["evaluation_details"]["requires_citation"] = requires_cite == "YES"
             results["evaluation_details"]["model_responses"].append(
@@ -441,7 +447,7 @@ def evaluate_report(
     # Process sentences sequentially (required for first instance checking)
     for i, sentence_data in enumerate(sentences):
         if verbose:
-            logger.info(f"Processing sentence {i+1}/{len(sentences)}")
+            logger.info(f"Processing sentence {i + 1}/{len(sentences)}")
         try:
             # Extract citation texts from the sentence data
             citation_texts = []
@@ -456,11 +462,11 @@ def evaluate_report(
                                 citation_texts.append(doc_text)
                                 break  # Found the document, no need to check other collections
                     # assert we found all the citations
-                    assert (
-                        len(citation_texts) == len(sentence_data["citations"])
-                    ), f"Expected {len(sentence_data['citations'])} citations, but found {len(citation_texts)}"
+                    assert len(citation_texts) == len(sentence_data["citations"]), (
+                        f"Expected {len(sentence_data['citations'])} citations, but found {len(citation_texts)}"
+                    )
                 else:
-                    logger.warning(f"Unexpected citation format in sentence {i+1}")
+                    logger.warning(f"Unexpected citation format in sentence {i + 1}")
 
             result = evaluate_sentence(
                 sentence=sentence_data["text"],
@@ -476,7 +482,7 @@ def evaluate_report(
             if result["matched_nuggets"]:
                 if verbose:
                     logger.debug(
-                        f"Sentence {i+1} matched {len(result['matched_nuggets'])} nuggets"
+                        f"Sentence {i + 1} matched {len(result['matched_nuggets'])} nuggets"
                     )
                 for nugget in result["matched_nuggets"]:
                     unique_nuggets_matched.add(
@@ -515,7 +521,7 @@ def evaluate_report(
 
         except Exception as e:
             if verbose:
-                logger.error(f"Error processing sentence {i+1}: {str(e)}")
+                logger.error(f"Error processing sentence {i + 1}: {str(e)}")
                 # add traceback
                 logger.error(f"Traceback: {traceback.format_exc()}")
             results.append(

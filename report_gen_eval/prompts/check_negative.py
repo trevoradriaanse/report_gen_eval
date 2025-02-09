@@ -41,4 +41,4 @@ Answer (YES/NO): YES
 
 Sentence: {sentence}
 
-Answer (YES/NO):""" 
+Answer (YES/NO):"""

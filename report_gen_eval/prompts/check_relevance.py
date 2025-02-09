@@ -49,4 +49,4 @@ Answer (YES/NO): YES
 Sentence: {sentence}
 Citation: {citation_content}
 
-Answer (YES/NO):""" 
+Answer (YES/NO):"""
