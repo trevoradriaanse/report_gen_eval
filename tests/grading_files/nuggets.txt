@@ -1,0 +1,17 @@
+{"question": "When did Avatar first become the highest grossing film?", "answer": "2010", "citations": ["D1"]}
+{"question": "When did Avengers: Endgame become the highest grossing film?", "answer": "2019", "citations": ["D1","D2", "D3", "D8", "D10", "D12", "D13"]}
+{"question": "When did Avengers: Endgame become the highest grossing film?", "answer": "July 2019", "citations": ["D3", "D12", "D13"]}
+{"question": "When did Avengers: Endgame become the highest grossing film?", "answer": "July 20, 2019", "citations": ["D3"]}
+{"question": "When did Avengers: Endgame become the highest grossing film?", "answer": "July 21, 2019", "citations": ["D13"]}
+{"question": "What did studio executives do to the Avengers: Endgame film to become the highest grossing film?", "answer": "Added six minutes of additional footage", "citations": ["D4"]}
+{"question": "What did studio executives do to the Avengers: Endgame film to become the highest grossing film?", "answer": "Added footage", "citations": ["D4"]}
+{"question": "What did studio executives do to the Avengers: Endgame film to become the highest grossing film?", "answer": "Added 6 minutes", "citations": ["D4"]}
+{"question": "What did studio executives do to the Avengers: Endgame film to become the highest grossing film?", "answer": "Additional footage at the end of the film", "citations": ["D14"]}
+{"question": "When did Avatar retake the title of highest grossing film?", "answer": "2021", "citations": ["D1", "D2", "D6", "D7", "D9", "D11"]}
+{"question": "When did Avatar retake the title of highest grossing film?", "answer": "March 2021", "citations": ["D1", "D6", "D7", "D9", "D11"]}
+{"question": "When did Avatar retake the title of highest grossing film?", "answer": "March 13, 2021", "citations": ["D1", "D6", "D9"]}
+{"question": "When did Avatar retake the title of highest grossing film?", "answer": "Two years after the Avengers: Endgame became the highest grossing film", "citations": ["D2"]}
+{"question": "What event led to Avatar becoming the highest grossing film?", "answer": "Re-release in Mainland China", "citations": ["D1", "D2", "D5", "D7", "D8", "D9", "D10"]}
+{"question": "What event led to Avatar becoming the highest grossing film?", "answer": "Re-release in China", "citations": ["D1", "D2", "D5", "D6", "D7", "D8", "D9", "D10"]}
+{"question": "What event led to Avatar becoming the highest grossing film?", "answer": "Release in Mainland China for a second time", "citations": ["D1", "D2", "D5", "D6", "D7", "D8", "D9", "D10"]}
+{"question": "What event led to Avatar becoming the highest grossing film?", "answer": "Returned to theaters in China", "citations": ["D11"]}
